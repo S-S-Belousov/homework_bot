@@ -6,7 +6,6 @@ import time
 from dotenv import load_dotenv
 from http import HTTPStatus
 from telegram import Bot
-import time
 
 load_dotenv()
 
@@ -40,7 +39,7 @@ def check_tokens():
         'telegram_chat_id': TELEGRAM_CHAT_ID,
     }
     for token_key, token_value in my_tokens.items():
-        if token_value == None:
+        if token_value is None:
             logging.error(
                 'Отсутствует токен: {}'.format(token_key)
             )
