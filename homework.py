@@ -13,12 +13,12 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-RETRY_TIME = 600
+RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
 
-HOMEWORK_STATUSES = {
+HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
@@ -40,7 +40,7 @@ def check_tokens():
     }
     for token_key, token_value in my_tokens.items():
         if token_value is None:
-            logging.error(
+            logging.critical(
                 'Отсутствует токен: {}'.format(token_key)
             )
             return (False)
@@ -51,7 +51,7 @@ def send_message(bot, message):
     """Функция отправки сообщения."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-        logging.info(
+        logging.debug(
             'Сообщение "{}" успешно отправленно'.format(message)
         )
     except Exception as error:
@@ -62,22 +62,28 @@ def send_message(bot, message):
 
 def get_api_answer(timestamp):
     """Функция запроса к API Яндекс.Практикум."""
-    response = requests.get(
-        ENDPOINT,
-        headers=HEADERS,
-        params={'from_date': timestamp}
-    )
-    response_json = response.json()
-    if response.status_code == HTTPStatus.OK:
-        logging.info('Ответ от Яндекс.Практикум: {}'.format(
-            response.status_code))
-        return response_json
-    else:
-        raise exceptions.InvalidHttpStatus(
-            'Ошибка ответа от Яндекс.Практикум: ',
-            'Код: {}'.format(response_json.get("code")),
-            'Сообщение: {}'.format(response_json.get("message"))
+    try:
+        response = requests.get(
+            ENDPOINT,
+            headers=HEADERS,
+            params={'from_date': timestamp}
         )
+        response_json = response.json()
+        if response.status_code == HTTPStatus.OK:
+            logging.info('Ответ от Яндекс.Практикум: {}'.format(
+                response.status_code))
+            return response_json
+        else:
+            raise exceptions.InvalidHttpStatus(
+                'Ошибка ответа от Яндекс.Практикум: ',
+                'Код: {}'.format(response_json.get("code")),
+                'Сообщение: {}'.format(response_json.get("message"))
+            )
+    except requests.exceptions.RequestException as error:
+        raise exceptions.RequestError(
+            'ошибка при запросе к Яндекс.Практикум: {}.'.format(error)
+        )
+
 
 
 def check_response(response):
@@ -94,18 +100,24 @@ def check_response(response):
     if isinstance(timestamp, int) and isinstance(homeworks, list):
         return homeworks
     else:
-        raise Exception
+        raise TypeError
 
 
 def parse_status(homework):
     """Функция, проверяющая статус домашнего задания."""
-    homework_name = homework['homework_name']
-    homework_status = homework.get('status')
-    if homework_status is None:
-        raise exceptions.StatusOfTheHomeworkIsUnknown
-    if homework_status in HOMEWORK_STATUSES:
-        return 'Новый статус проверки домашней работы {}: {}'.format(
-            homework_name, HOMEWORK_STATUSES.get(homework_status)
+    try:
+        homework_name = homework['homework_name']
+    except KeyError:
+        logging.error('Отсутствует ключ "homework_name"')
+    try:
+        homework_status = homework.get('status')
+    except KeyError:
+        logging.error('Отсутствует ключ "status"')
+    if homework_status in HOMEWORK_VERDICTS:
+        return (
+            'Изменился статус проверки работы "{}" '.format(homework_name) +
+            'Новый статус проверки домашней работы "{}": {}'.format(
+            homework_name, HOMEWORK_VERDICTS.get(homework_status))
         )
     else:
         raise exceptions.StatusOfTheHomeworkIsUnknown
@@ -124,13 +136,13 @@ def main():
                     message = parse_status(homeworks[0])
                     send_message(bot, message)
                 timestamp = int(time.time())
-                time.sleep(RETRY_TIME)
+                time.sleep(RETRY_PERIOD)
 
             except Exception as error:
                 message = f'Сбой в работе программы: {error}'
                 send_message(bot, message)
                 logging.error(message)
-                time.sleep(RETRY_TIME)
+                time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
