@@ -3,7 +3,7 @@ import logging
 import requests
 import exceptions
 import time
-import telegram 
+import telegram
 from http import HTTPStatus
 from constants import (
     PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID,
