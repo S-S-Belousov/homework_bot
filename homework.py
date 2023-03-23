@@ -3,31 +3,11 @@ import logging
 import requests
 import exceptions
 import time
-from dotenv import load_dotenv
+import telegram 
 from http import HTTPStatus
-from telegram import Bot
-
-load_dotenv()
-
-PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-
-RETRY_PERIOD = 600
-ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
-HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-
-
-HOMEWORK_VERDICTS = {
-    'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
-    'reviewing': 'Работа взята на проверку ревьюером.',
-    'rejected': 'Работа проверена: у ревьюера есть замечания.'
-}
-
-logging.basicConfig(
-    level=logging.INFO,
-    filename=os.path.join(os.path.dirname(__file__), 'main.log'),
-    format='%(asctime)s, %(levelname)s, %(message)s, %(name)s'
+from constants import (
+    PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID,
+    ENDPOINT, HEADERS, HOMEWORK_VERDICTS, RETRY_PERIOD
 )
 
 
@@ -85,7 +65,6 @@ def get_api_answer(timestamp):
         )
 
 
-
 def check_response(response):
     """Функция проверки ответа API на соответствие документации."""
     try:
@@ -115,18 +94,18 @@ def parse_status(homework):
         logging.error('Отсутствует ключ "status"')
     if homework_status in HOMEWORK_VERDICTS:
         return (
-            'Изменился статус проверки работы "{}" '.format(homework_name) +
-            'Новый статус проверки домашней работы "{}": {}'.format(
-            homework_name, HOMEWORK_VERDICTS.get(homework_status))
+            'Изменился статус проверки работы "{}" '.format(homework_name)
+            + 'Новый статус проверки домашней работы "{}": {}'.format(
+                homework_name, HOMEWORK_VERDICTS.get(homework_status))
         )
     else:
         raise exceptions.StatusOfTheHomeworkIsUnknown
 
 
 def main():
-    """Основная логика работы бота."""
+    """Основная логика работы программы."""
     if check_tokens():
-        bot = Bot(token=TELEGRAM_TOKEN)
+        bot = telegram.Bot(token=TELEGRAM_TOKEN)
         timestamp = 0
         while True:
             try:
@@ -146,4 +125,9 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        filename=os.path.join(os.path.dirname(__file__), 'main.log'),
+        format='%(asctime)s, %(levelname)s, %(message)s, %(name)s'
+    )
     main()
