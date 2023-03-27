@@ -23,13 +23,16 @@ def check_tokens():
             logging.critical(
                 'Отсутствует токен: {}'.format(token_key)
             )
-            return (False)
-    return (True)
+            return False
+    return True
 
 
 def send_message(bot, message):
     """Функция отправки сообщения."""
     try:
+        logging.info(
+            'Сообщение "{}" отправляется'.format(message)
+        )
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.debug(
             'Сообщение "{}" успешно отправленно'.format(message)
@@ -67,19 +70,23 @@ def get_api_answer(timestamp):
 
 def check_response(response):
     """Функция проверки ответа API на соответствие документации."""
-    try:
-        timestamp = response['current_date']
-    except KeyError:
-        logging.error('Ключ "current_date" отсутствует в ответе')
-    try:
-        homeworks = response['homeworks']
-    except KeyError:
-        logging.error('Ключ "homeworks" отсутствует в ответе'
-                      )
-    if isinstance(timestamp, int) and isinstance(homeworks, list):
-        return homeworks
+    if not isinstance(response, dict):
+        raise TypeError(
+            'Ответ "{}" не является словарем.'.format(response)
+        )
     else:
-        raise TypeError
+        try:
+            timestamp = response['current_date']
+        except KeyError:
+            logging.error('Ключ "current_date" отсутствует в ответе')
+        try:
+            homeworks = response['homeworks']
+        except KeyError:
+            logging.error('Ключ "homeworks" отсутствует в ответе'
+                          )
+        if not (isinstance(timestamp, int) and isinstance(homeworks, list)):
+            raise TypeError
+        return homeworks
 
 
 def parse_status(homework):
@@ -104,7 +111,10 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы программы."""
-    if check_tokens():
+    if not check_tokens():
+        exit()
+    else:
+        last_homework = ''
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
         timestamp = 0
         while True:
@@ -113,7 +123,9 @@ def main():
                 homeworks = check_response(response)
                 if len(homeworks) > 0:
                     message = parse_status(homeworks[0])
-                    send_message(bot, message)
+                    if last_homework != message:
+                        send_message(bot, message)
+                        last_homework = message
                 timestamp = int(time.time())
                 time.sleep(RETRY_PERIOD)
 
@@ -121,6 +133,7 @@ def main():
                 message = f'Сбой в работе программы: {error}'
                 send_message(bot, message)
                 logging.error(message)
+            finally:
                 time.sleep(RETRY_PERIOD)
 
 
